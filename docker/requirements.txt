@@ -1,4 +1,5 @@
-boto3==1.18.62
-Pillow==8.4.0
-pyzbar==0.1.8
-reportlab==3.6.1
+reportlab
+qrcode
+python-barcode
+pillow
+boto3

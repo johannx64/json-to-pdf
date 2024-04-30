@@ -1,19 +1,15 @@
-FROM public.ecr.aws/lambda/python:3.7.2024.04.17.17
+FROM public.ecr.aws/lambda/python:3.9
 
-# Copy requirements.txt
-COPY requirements.txt ${LAMBDA_TASK_ROOT}
-#COPY install-browsers.sh /tmp/
-
-# Install build tools
-RUN yum update -y && \
-    yum groupinstall -y "Development Tools" && \
-    yum install -y gcc
-
-# Install the specified packages
-RUN pip install -r requirements.txt
+# Install system dependencies
+RUN yum install -y freetype-devel libjpeg-turbo-devel zlib-devel
 
 # Copy function code
 COPY lambda_function.py ${LAMBDA_TASK_ROOT}
 
-# Set the CMD to your handler (could also be done as a parameter override outside of the Dockerfile)
-CMD [ "lambda_function.handler" ]
+# Install Python dependencies
+COPY requirements.txt .
+RUN python3.9 -m pip install --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set the CMD to your handler
+CMD ["lambda_function.handler"]
