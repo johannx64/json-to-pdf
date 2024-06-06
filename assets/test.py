@@ -7,7 +7,7 @@ from reportlab.graphics import renderPDF
 from reportlab.pdfgen import canvas
 from svglib.svglib import svg2rlg
 import base64
-
+import requests
 import barcode
 from barcode.writer import ImageWriter
 from io import BytesIO
@@ -28,6 +28,24 @@ def replace_text_in_svg(root, variables):
         if group_id and group_id in variables:
             for text_elem in group.findall('{http://www.w3.org/2000/svg}text'):
                 text_elem.text = str(variables[group_id])
+        for key, value in variables.items():
+            if key.startswith("image_") and isinstance(value, str):
+                image_url = value
+                image_data = download_image_as_base64(image_url)
+                insert_image_as_base64(root, group_id, image_data)
+
+def download_image_as_base64(url):
+    response = requests.get(url)
+    image_data = base64.b64encode(response.content).decode('utf-8')
+    return f'data:image/png;base64,{image_data}'
+
+def insert_image_as_base64(parent, group_id, image_data):
+    image_elem = ET.Element('{http://www.w3.org/2000/svg}image')
+    image_elem.set('id', group_id)
+    image_elem.set('width', "100")  # Adjust as needed
+    image_elem.set('height', "100")  # Adjust as needed
+    image_elem.set('{http://www.w3.org/1999/xlink}href', image_data)
+    parent.append(image_elem)
 
 def generate_data_matrix_svg(data):
     encoded = dmtx_encode(data.encode('utf-8'))
@@ -46,7 +64,7 @@ def generate_data_matrix_svg(data):
 def generate_barcode_png(barcode_data):
     # Generate barcode PNG
     png_buffer = BytesIO()
-    barcode.generate('code128', barcode_data, writer=ImageWriter(), output=png_buffer,writer_options={'write_text': False})
+    barcode.generate('code128', barcode_data, writer=ImageWriter(), output=png_buffer, writer_options={'write_text': False})
     png_buffer.seek(0)  # Reset buffer position
     return png_buffer.getvalue()
 
@@ -74,8 +92,16 @@ def convert_svg_to_pdf(svg_tree, pdf_file_path):
     temp_svg_path = "temp_output.svg"
     svg_tree.write(temp_svg_path)
     drawing = svg2rlg(temp_svg_path)
-    c = canvas.Canvas(pdf_file_path)
+    
+    # Create a new canvas with dimensions 2 inches by 2 inches (144 points = 2 inches)
+    c = canvas.Canvas(pdf_file_path, pagesize=(144, 144))
+    
+    # Get the dimensions of the drawing
+    width, height = drawing.width, drawing.height
+    
+    # Draw the content at the top-left corner
     renderPDF.draw(drawing, c, 0, 0)
+    
     c.showPage()
     c.save()
 
@@ -95,9 +121,9 @@ replace_text_in_svg(svg_root, data["variables"]["item"])
 order_id = str(data["variables"]["item"]["orderItemId"])
 data_matrix_svg = generate_data_matrix_svg(order_id)
 
-# Generate the barcode SVG from barcodeData
+# Generate the barcode PNG from barcodeData
 barcode_data = str(data["variables"]["orderId"])
-barcode_svg = generate_barcode_png(barcode_data)
+barcode_png = generate_barcode_png(barcode_data)
 
 # Find the image tag with the datamatrix ID and replace its content
 for parent in svg_root.findall(".//{http://www.w3.org/2000/svg}g"):
@@ -113,7 +139,7 @@ for parent in svg_root.findall(".//{http://www.w3.org/2000/svg}g"):
             width = img_elem.get("width")
             height = img_elem.get("height")
             parent.remove(img_elem)
-            insert_png_with_transform(parent, barcode_svg, width, height, transform)
+            insert_png_with_transform(parent, barcode_png, width, height, transform)
 
 # Replace matrixcode attributes
 matrixcode_attributes = data["variables"]["matrixcode"]["attributes"]
