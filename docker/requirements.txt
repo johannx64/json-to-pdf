@@ -3,3 +3,4 @@ qrcode
 python-barcode
 pillow
 boto3
+barcode

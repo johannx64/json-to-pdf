@@ -1,0 +1,172 @@
+{
+  "orderId": 71691841,
+  "orderKey": "6f11abcc62c84b0c982378a307aa86be",
+  "orderDate": "2024-05-02T11:35:28.0000000",
+  "customField2": "RJD",
+  "customField3": "DR",
+  "storeId": 285146,
+  "itemNumber": 2,
+  "itemTotal": 2,
+  "item": {
+    "orderItemId": 135802750,
+    "lineItemKey": "001",
+    "sku": "ABC",
+    "name": "test 2",
+    "quantity": 1,
+    "unitPrice": 0,
+    "options": [
+      {
+        "name": "lat",
+        "value": "34.052235"
+      },
+      {
+        "name": "long",
+        "value": "-118.243683"
+      },
+      {
+        "name": "chain-type",
+        "value": "rolo"
+      },
+      {
+        "name": "chain-length",
+        "value": "18 inches"
+      },
+      {
+        "name": "finish",
+        "value": "14k yellow gold plated"
+      },
+      {
+        "name": "birthstone",
+        "value": "peridot"
+      },
+      {
+        "name": "diamond-bezel",
+        "value": "none"
+      },
+      {
+        "name": "finish",
+        "value": "14k yellow gold plated"
+      },
+      {
+        "name": "gift wrap",
+        "value": "none"
+      },
+      {
+        "name": "lat-2",
+        "value": "34.052235"
+      },
+      {
+        "name": "long-2",
+        "value": "-118.243683"
+      },
+      {
+        "name": "chain-type-2",
+        "value": "rolo"
+      },
+      {
+        "name": "chain-length-2",
+        "value": "18 inches"
+      },
+      {
+        "name": "finish-2",
+        "value": "14k yellow gold plated"
+      },
+      {
+        "name": "birthstone-2",
+        "value": "peridot"
+      },
+      {
+        "name": "diamond-bezel-2",
+        "value": "none"
+      },
+      {
+        "name": "finish-2",
+        "value": "14k yellow gold plated"
+      },
+      {
+        "name": "gift wrap-2",
+        "value": "none"
+      }
+    ],
+    "productId": 9818057,
+    "adjustment": false,
+    "createDate": "2024-05-03T16:44:50.743",
+    "modifyDate": "2024-05-03T16:44:50.743",
+    "normalizedoptions": {
+      "normalizedOptions": [
+        {
+          "name": "lat",
+          "value": "34.052235"
+        },
+        {
+          "name": "long",
+          "value": "-118.243683"
+        },
+        {
+          "name": "chain-type",
+          "value": "rolo-030"
+        },
+        {
+          "name": "chain-length",
+          "value": "18 inches"
+        },
+        {
+          "name": "finish",
+          "value": "14K Plate"
+        },
+        {
+          "name": "birthstone",
+          "value": "peridot"
+        },
+        {
+          "name": "diamond-bezel",
+          "value": "none"
+        },
+        {
+          "name": "finish",
+          "value": "14K Plate"
+        },
+        {
+          "name": "gift wrap",
+          "value": "none"
+        },
+        {
+          "name": "lat-2",
+          "value": "34.052235"
+        },
+        {
+          "name": "long-2",
+          "value": "-118.243683"
+        },
+        {
+          "name": "chain-type-2",
+          "value": "rolo"
+        },
+        {
+          "name": "chain-length-2",
+          "value": "18 inches"
+        },
+        {
+          "name": "finish-2",
+          "value": "14k yellow gold plated"
+        },
+        {
+          "name": "birthstone-2",
+          "value": "peridot"
+        },
+        {
+          "name": "diamond-bezel-2",
+          "value": "none"
+        },
+        {
+          "name": "finish-2",
+          "value": "14k yellow gold plated"
+        },
+        {
+          "name": "gift wrap-2",
+          "value": "none"
+        }
+      ]
+    }
+  }
+}

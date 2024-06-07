@@ -1,92 +1,172 @@
-import os
-import boto3
 import json
-from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.lib.colors import black
-from reportlab.lib.utils import ImageReader
+import os
+from xml.etree import ElementTree as ET
+from pylibdmtx.pylibdmtx import encode as dmtx_encode
 from PIL import Image
-import qrcode
+import svgwrite
+from reportlab.graphics import renderPDF
+from reportlab.pdfgen import canvas
+from svglib.svglib import svg2rlg
+import base64
+import requests
 import barcode
 from barcode.writer import ImageWriter
+from io import BytesIO
+import boto3
 
-s3 = boto3.client('s3')
+def read_json(json_path):
+    with open(json_path, 'r') as file:
+        data = json.load(file)
+    return data
+
+def load_svg_template(template_path):
+    tree = ET.parse(template_path)
+    root = tree.getroot()
+    return tree, root
+
+def replace_text_in_svg(root, variables):
+    for group in root.iter('{http://www.w3.org/2000/svg}g'):
+        group_id = group.get('id')
+        if group_id and group_id in variables:
+            for text_elem in group.findall('{http://www.w3.org/2000/svg}text'):
+                text_elem.text = str(variables[group_id])
+
+def download_image_as_base64(url):
+    response = requests.get(url)
+    image_data = base64.b64encode(response.content).decode('utf-8')
+    return f'data:image/png;base64,{image_data}'
+
+def insert_image_as_base64(parent, group_id, image_data):
+    for image_elem in parent.findall('{http://www.w3.org/2000/svg}image'):
+        if image_elem.get('id') == group_id:
+            image_elem.set('{http://www.w3.org/1999/xlink}href', image_data)
+            return
+
+def generate_data_matrix_svg(data):
+    encoded = dmtx_encode(data.encode('utf-8'))
+    image = Image.frombytes('RGB', (encoded.width, encoded.height), encoded.pixels)
+    dwg = svgwrite.Drawing(size=(image.width, image.height))
+    pixel_size = 1
+
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            if r == 0 and g == 0 and b == 0:
+                dwg.add(dwg.rect(insert=(x * pixel_size, y * pixel_size), size=(pixel_size, pixel_size), fill='black'))
+
+    return dwg.tostring()
+
+def generate_barcode_png(barcode_data):
+    # Generate barcode PNG
+    png_buffer = BytesIO()
+    barcode.generate('code128', barcode_data, writer=ImageWriter(), output=png_buffer, writer_options={'write_text': False})
+    png_buffer.seek(0)  # Reset buffer position
+    return png_buffer.getvalue()
+
+def insert_svg_element_with_transform(parent, svg_content, width, height, transform):
+    svg_element = ET.fromstring(svg_content)
+    group = ET.Element('{http://www.w3.org/2000/svg}g')
+    group.set('transform', transform)
+    group.set('width', width)
+    group.set('height', height)
+    for element in svg_element:
+        group.append(element)
+    parent.append(group)
+
+def insert_png_with_transform(parent, png_data, width, height, transform):
+    # Insert PNG image into SVG
+    png_data_encoded = base64.b64encode(png_data).decode('utf-8')
+    image_elem = ET.Element('{http://www.w3.org/2000/svg}image')
+    image_elem.set('width', str(width))
+    image_elem.set('height', str(height))
+    image_elem.set('transform', transform)
+    image_elem.set('{http://www.w3.org/1999/xlink}href', f'data:image/png;base64,{png_data_encoded}')
+    parent.append(image_elem)
+
+def convert_svg_to_pdf(svg_tree, pdf_file_path):
+    temp_svg_path = "/tmp/temp_output.svg"
+    svg_tree.write(temp_svg_path)
+    drawing = svg2rlg(temp_svg_path)
+    
+    # Create a new canvas with dimensions 2 inches by 2 inches (144 points = 2 inches)
+    c = canvas.Canvas(pdf_file_path, pagesize=(144, 144))
+    
+    # Get the dimensions of the drawing
+    width, height = drawing.width, drawing.height
+    
+    # Draw the content at the top-left corner
+    renderPDF.draw(drawing, c, 0, 0)
+    
+    c.showPage()
+    c.save()
 
 def handler(event, context):
-    try:
-        items = event.get('items')
-        order_id = event.get('orderId')
+    # Load the JSON data
+    json_path = "/tmp/clean_template.json"
+    with open(json_path, 'w') as f:
+        f.write(event['body'])
+    data = read_json(json_path)
 
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        elements = []
+    # Load the SVG template
+    template_path = data["template_path"]
+    svg_tree, svg_root = load_svg_template(template_path)
 
-        for i, item in enumerate(items):
-            paragraph_style = getSampleStyleSheet()['BodyText']
-            elements.append(Paragraph(f"Order Item ID: {item.get('orderItemId')}", paragraph_style))
+    # Replace text placeholders in the SVG
+    replace_text_in_svg(svg_root, data["variables"])
+    replace_text_in_svg(svg_root, data["variables"]["item"])
 
-            for option in item.get('options'):
-                elements.append(Paragraph(f"{option.get('name')}: {option.get('value')}", paragraph_style))
+    # Generate the Data Matrix SVG from orderId
+    order_id = str(data["variables"]["item"]["orderItemId"])
+    data_matrix_svg = generate_data_matrix_svg(order_id)
 
-            qr_img = generate_qr_code(order_id, 145, 145)
-            elements.append(qr_img)
+    # Generate the barcode PNG from barcodeData
+    barcode_data = str(data["variables"]["orderId"])
+    barcode_png = generate_barcode_png(barcode_data)
 
-            barcode_img = generate_barcode(item.get('orderItemId'), 'code128', 245, 45)
-            elements.append(barcode_img)
+    # Find the image tag with the datamatrix ID and replace its content
+    for parent in svg_root.findall(".//{http://www.w3.org/2000/svg}g"):
+        for img_elem in parent.findall("{http://www.w3.org/2000/svg}image"):
+            if img_elem.get("id") == "datamatrix":
+                transform = img_elem.get("transform")
+                width = img_elem.get("width")
+                height = img_elem.get("height")
+                parent.remove(img_elem)
+                insert_svg_element_with_transform(parent, data_matrix_svg, width, height, transform)
+            elif img_elem.get("id") == "barcode":
+                transform = img_elem.get("transform")
+                width = img_elem.get("width")
+                height = img_elem.get("height")
+                parent.remove(img_elem)
+                insert_png_with_transform(parent, barcode_png, width, height, transform)
+            elif img_elem.get("id").startswith("image_"):
+                group_id = img_elem.get("id")
+                value = data["variables"][group_id]
+                if isinstance(value, str):
+                    image_url = value
+                    response = requests.get(image_url)
+                    png_data = response.content
+                    transform = img_elem.get("transform")
+                    width = img_elem.get("width")
+                    height = img_elem.get("height")
+                    parent.remove(img_elem)
+                    insert_png_with_transform(parent, png_data, width, height, transform)
 
-        doc.build(elements)
+    # Replace matrixcode attributes
+    matrixcode_attributes = data["variables"]["matrixcode"]["attributes"]
+    for key, value in matrixcode_attributes.items():
+        svg_root.set(key, str(value))
 
-        # Replace 'printables-mfg-rep/item-qc-barcode-sticker' with your actual bucket name
-        bucket_name = 'printables-mfg-rep'
-        folder_name = 'item-qc-barcode-sticker'
-        key = f"{folder_name}/{order_id}.pdf"
+    # Convert the final SVG to PDF using orderItemId as the filename
+    order_item_id = str(data["variables"]["item"]["orderItemId"])
+    pdf_file_path = f"/tmp/{order_item_id}.pdf"
+    convert_svg_to_pdf(svg_tree, pdf_file_path)
 
-        # Initialize the S3 client
-        s3_client = boto3.client('s3')
+    # Upload the PDF to S3 using the bucket name from the JSON data
+    s3 = boto3.client('s3')
+    s3_bucket_name = data["variables"]["bucket"]
+    s3.upload_file(pdf_file_path, s3_bucket_name, f'{order_item_id}.pdf')
 
-        # Upload the file object to S3
-        s3_client.upload_fileobj(buffer, bucket_name, key)
-
-        # Construct the output dictionary with the S3 URL
-        output = {
-            'status': 'success',
-            'url': f"https://{bucket_name}.s3.amazonaws.com/{key}"
-        }
-
-        return output
-
-    except Exception as e:
-        output = {
-            'status': 'error',
-            'url': '',
-            'error': str(e)
-        }
-        return output
-
-def generate_qr_code(data, width, height):
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    img = img.resize((width, height), Image.ANTIALIAS)
-    buffer = BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    return ImageReader(buffer)
-
-def generate_barcode(data, code_type, width, height):
-    barcode_writer = ImageWriter()
-    barcode_img = barcode.get_barcode_class(code_type)(data, barcode_writer)
-    barcode_img = barcode_img.resize((width, height), barcode.NEAREST)
-    buffer = BytesIO()
-    barcode_img.save(buffer, format="PNG")
-    buffer.seek(0)
-    return ImageReader(buffer)
+    return {
+        'statusCode': 200,
+        'body': json.dumps(f'PDF created and uploaded successfully as {order_item_id}.pdf.')
+    }

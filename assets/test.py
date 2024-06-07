@@ -28,11 +28,7 @@ def replace_text_in_svg(root, variables):
         if group_id and group_id in variables:
             for text_elem in group.findall('{http://www.w3.org/2000/svg}text'):
                 text_elem.text = str(variables[group_id])
-        for key, value in variables.items():
-            if key.startswith("image_") and isinstance(value, str):
-                image_url = value
-                image_data = download_image_as_base64(image_url)
-                insert_image_as_base64(root, group_id, image_data)
+
 
 def download_image_as_base64(url):
     response = requests.get(url)
@@ -40,12 +36,10 @@ def download_image_as_base64(url):
     return f'data:image/png;base64,{image_data}'
 
 def insert_image_as_base64(parent, group_id, image_data):
-    image_elem = ET.Element('{http://www.w3.org/2000/svg}image')
-    image_elem.set('id', group_id)
-    image_elem.set('width', "100")  # Adjust as needed
-    image_elem.set('height', "100")  # Adjust as needed
-    image_elem.set('{http://www.w3.org/1999/xlink}href', image_data)
-    parent.append(image_elem)
+    for image_elem in parent.findall('{http://www.w3.org/2000/svg}image'):
+        if image_elem.get('id') == group_id:
+            image_elem.set('{http://www.w3.org/1999/xlink}href', image_data)
+            return
 
 def generate_data_matrix_svg(data):
     encoded = dmtx_encode(data.encode('utf-8'))
@@ -140,6 +134,18 @@ for parent in svg_root.findall(".//{http://www.w3.org/2000/svg}g"):
             height = img_elem.get("height")
             parent.remove(img_elem)
             insert_png_with_transform(parent, barcode_png, width, height, transform)
+        elif img_elem.get("id").startswith("image_"):
+                    group_id = img_elem.get("id")
+                    value = data["variables"][group_id]
+                    if isinstance(value, str):
+                        image_url = value
+                        response = requests.get(image_url)
+                        png_data = response.content
+                        transform = img_elem.get("transform")
+                        width = img_elem.get("width")
+                        height = img_elem.get("height")
+                        parent.remove(img_elem)
+                        insert_png_with_transform(parent, png_data, width, height, transform)
 
 # Replace matrixcode attributes
 matrixcode_attributes = data["variables"]["matrixcode"]["attributes"]
