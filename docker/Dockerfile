@@ -1,7 +1,12 @@
 FROM public.ecr.aws/lambda/python:3.9
 
 # Install system dependencies
-RUN yum install -y freetype-devel libjpeg-turbo-devel zlib-devel
+RUN yum install -y \
+    freetype-devel \
+    libjpeg-turbo-devel \
+    zlib-devel \
+    dmtx-utils \
+    dmtx-devel
 
 # Copy function code
 COPY lambda_function.py ${LAMBDA_TASK_ROOT}
